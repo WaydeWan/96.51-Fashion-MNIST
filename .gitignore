@@ -42,11 +42,12 @@ ENV/
 # *.h5
 # *.ckpt
 
-# Data files (large files - uncomment if you don't want to upload)
-# data/
-# *.csv
-# *.npy
-# *.npz
+# Data files (large files - don't upload)
+data/
+*.csv
+*.npy
+*.npz
+*.ubyte
 
 # Evaluation results (uncomment if you don't want to upload)
 # evaluation_results/

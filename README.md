@@ -1,6 +1,8 @@
-# Fashion-MNIST Deep Learning Classification
+# 96.51-Fashion-MNIST
 
-A comprehensive deep learning project for classifying Fashion-MNIST images using multiple state-of-the-art architectures. This project implements and compares 5 different models: BetterCNN, ResNet18, EfficientNet-B0, DenseNet-121, and Vision Transformer (ViT-Tiny).
+**Class project for EECS 230P**
+
+A comprehensive deep learning project for classifying Fashion-MNIST images using multiple state-of-the-art architectures. This project implements and compares 5 different models: BetterCNN, ResNet18, EfficientNet-B0, DenseNet-121, and Vision Transformer (ViT-Tiny), achieving **96.51% accuracy** with ensemble methods.
 
 ## 📋 Table of Contents
 
