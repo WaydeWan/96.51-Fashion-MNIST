@@ -1,7 +1,7 @@
 """
-Fashion-MNIST EfficientNet 训练脚本
+Fashion-MNIST EfficientNet Training Script
 
-基于 torchvision 的 EfficientNet-B0，修改首层卷积以支持灰度图。
+Based on torchvision's EfficientNet-B0, modified first convolution layer to support grayscale images.
 """
 
 import random
@@ -32,10 +32,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # ============================================================================
-# MixUp/CutMix 数据增强
+# MixUp/CutMix Data Augmentation
 # ============================================================================
 def mixup_data(x, y, alpha=0.2):
-    """MixUp数据增强"""
+    """MixUp data augmentation"""
     if alpha > 0:
         lam = np.random.beta(alpha, alpha)
     else:
@@ -47,7 +47,7 @@ def mixup_data(x, y, alpha=0.2):
     return mixed_x, y_a, y_b, lam
 
 def cutmix_data(x, y, alpha=1.0):
-    """CutMix数据增强"""
+    """CutMix data augmentation"""
     if alpha > 0:
         lam = np.random.beta(alpha, alpha)
     else:
@@ -71,14 +71,14 @@ def cutmix_data(x, y, alpha=1.0):
     return mixed_x, y_a, y_b, lam
 
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    """计算MixUp/CutMix的损失"""
+    """Calculate MixUp/CutMix loss"""
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 # ============================================================================
-# 学习率Warmup调度器
+# Learning Rate Warmup Scheduler
 # ============================================================================
 class WarmupCosineScheduler:
-    """带Warmup的余弦退火学习率调度器"""
+    """Cosine annealing learning rate scheduler with warmup"""
     def __init__(self, optimizer, warmup_epochs, total_epochs, base_lr, min_lr=1e-6):
         self.optimizer = optimizer
         self.warmup_epochs = warmup_epochs
@@ -119,7 +119,7 @@ def get_loaders(batch_size: int = 256) -> Tuple[DataLoader, DataLoader]:
     train_set = datasets.FashionMNIST(root="./data", train=True, download=True, transform=train_transform)
     test_set = datasets.FashionMNIST(root="./data", train=False, download=True, transform=test_transform)
 
-    # Windows上num_workers=0避免多进程问题，Linux/Mac可以用4
+    # num_workers=0 on Windows to avoid multiprocessing issues, Linux/Mac can use 4
     num_workers = 0
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True)
     test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
@@ -130,7 +130,7 @@ def build_model(num_classes: int = 10) -> nn.Module:
     weights = EfficientNet_B0_Weights.IMAGENET1K_V1
     model = efficientnet_b0(weights=weights)
 
-    # 修改首层卷积，适配单通道
+    # Modify first convolution layer to adapt to single channel
     first_conv = model.features[0][0]
     model.features[0][0] = nn.Conv2d(1, first_conv.out_channels, kernel_size=3, stride=2, padding=1, bias=False)
     with torch.no_grad():
@@ -148,7 +148,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler=None, use_mixup=
         x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
         optimizer.zero_grad()
 
-        # MixUp/CutMix数据增强
+        # MixUp/CutMix data augmentation
         if use_mixup or use_cutmix:
             if use_cutmix and np.random.rand() < 0.5:
                 mixed_x, y_a, y_b, lam = cutmix_data(x, y, alpha=1.0)
@@ -183,7 +183,7 @@ def train_one_epoch(model, loader, criterion, optimizer, scaler=None, use_mixup=
 
 
 def evaluate(model, loader):
-    """评估模型，返回准确率和平均损失"""
+    """Evaluate model, returns accuracy and average loss"""
     model.eval()
     correct = 0
     total = 0
@@ -202,7 +202,7 @@ def evaluate(model, loader):
 
 
 def main():
-    # 获取脚本所在目录（项目根目录）的绝对路径
+    # Get absolute path of script directory (project root)
     script_dir = Path(__file__).parent.absolute()
     train_loader, test_loader = get_loaders(batch_size=256)
     model = build_model(num_classes=10).to(device)
@@ -210,7 +210,7 @@ def main():
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
     
-    # 学习率调度：带Warmup的余弦退火
+    # Learning rate scheduling: Cosine annealing with warmup
     max_epochs = 70
     warmup_epochs = 5
     scheduler = WarmupCosineScheduler(
@@ -238,7 +238,7 @@ def main():
         current_lr = scheduler.get_lr()
         print(f"Epoch {epoch+1}/{max_epochs} | Train Loss: {avg_loss:.4f} | Val Loss: {val_loss:.4f} | Acc: {acc:.4f} | LR: {current_lr:.6f}")
 
-        # 增强早停机制
+        # Enhanced early stopping mechanism
         improved = False
         if acc > best_acc + min_delta:
             best_acc = acc

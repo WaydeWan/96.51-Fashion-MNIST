@@ -1,9 +1,9 @@
 """
-Fashion-MNIST ResNet18 训练脚本（优化版）
-- 增强数据增强策略
-- 添加梯度裁剪
-- 优化学习率调度
-- 添加随机种子保证可复现
+Fashion-MNIST ResNet18 Training Script (Optimized Version)
+- Enhanced data augmentation strategy
+- Added gradient clipping
+- Optimized learning rate scheduling
+- Added random seed for reproducibility
 """
 import torch
 import random
@@ -15,7 +15,7 @@ from torchvision import datasets, transforms
 from torchvision.models import resnet18, ResNet18_Weights
 from tqdm import tqdm
 
-# 设置随机种子（保证可复现）
+# Set random seed (for reproducibility)
 def set_seed(seed: int = 42) -> None:
     random.seed(seed)
     np.random.seed(seed)
@@ -27,26 +27,26 @@ def set_seed(seed: int = 42) -> None:
 
 set_seed(42)
 
-# 配置
+# Configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 if torch.cuda.is_available():
     print(f"GPU: {torch.cuda.get_device_name(0)}")
     print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
 
-# 数据加载（增强版）
+# Data loading (enhanced version)
 def get_loaders(batch_size=256):
-    # 训练集：更强的数据增强
+    # Training set: stronger data augmentation
     train_transform = transforms.Compose([
         transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomRotation(5),  # 小角度旋转
-        transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),  # 轻微平移
+        transforms.RandomRotation(5),  # Small angle rotation
+        transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),  # Slight translation
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,)),
-        transforms.RandomErasing(p=0.1, scale=(0.02, 0.2))  # 随机擦除
+        transforms.RandomErasing(p=0.1, scale=(0.02, 0.2))  # Random erasing
     ])
     
-    # 测试集：只做基本转换
+    # Test set: only basic transforms
     test_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.5,), (0.5,))
@@ -59,7 +59,7 @@ def get_loaders(batch_size=256):
         root="./data", train=False, download=True, transform=test_transform
     )
     
-    # Windows上num_workers=0避免多进程问题
+    # num_workers=0 on Windows to avoid multiprocessing issues
     num_workers = 0
     train_loader = DataLoader(
         train_set, batch_size=batch_size, shuffle=True, 
@@ -71,28 +71,28 @@ def get_loaders(batch_size=256):
     )
     return train_loader, test_loader
 
-# 模型：轻量ResNet18
+# Model: Lightweight ResNet18
 class ResNet28(nn.Module):
     def __init__(self, num_classes=10):
         super().__init__()
-        # 使用预训练ResNet18（虽然没有28x28的预训练，但结构是好的）
+        # Use pretrained ResNet18 (although no 28x28 pretrained weights, the structure is good)
         self.model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
         
-        # 修改第一层适应单通道
+        # Modify first layer to adapt to single channel
         self.model.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.model.maxpool = nn.Identity()  # 移除maxpool以适应28x28
+        self.model.maxpool = nn.Identity()  # Remove maxpool to adapt to 28x28
         
-        # 修改分类头
+        # Modify classification head
         self.model.fc = nn.Linear(512, num_classes)
     
     def forward(self, x):
         return self.model(x)
 
 # ============================================================================
-# MixUp/CutMix 数据增强
+# MixUp/CutMix Data Augmentation
 # ============================================================================
 def mixup_data(x, y, alpha=0.2):
-    """MixUp数据增强"""
+    """MixUp data augmentation"""
     if alpha > 0:
         lam = np.random.beta(alpha, alpha)
     else:
@@ -104,7 +104,7 @@ def mixup_data(x, y, alpha=0.2):
     return mixed_x, y_a, y_b, lam
 
 def cutmix_data(x, y, alpha=1.0):
-    """CutMix数据增强"""
+    """CutMix data augmentation"""
     if alpha > 0:
         lam = np.random.beta(alpha, alpha)
     else:
@@ -128,14 +128,14 @@ def cutmix_data(x, y, alpha=1.0):
     return mixed_x, y_a, y_b, lam
 
 def mixup_criterion(criterion, pred, y_a, y_b, lam):
-    """计算MixUp/CutMix的损失"""
+    """Calculate MixUp/CutMix loss"""
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 # ============================================================================
-# 学习率Warmup调度器
+# Learning Rate Warmup Scheduler
 # ============================================================================
 class WarmupCosineScheduler:
-    """带Warmup的余弦退火学习率调度器"""
+    """Cosine annealing learning rate scheduler with warmup"""
     def __init__(self, optimizer, warmup_epochs, total_epochs, base_lr, min_lr=1e-6):
         self.optimizer = optimizer
         self.warmup_epochs = warmup_epochs
@@ -157,7 +157,7 @@ class WarmupCosineScheduler:
     def get_lr(self):
         return self.optimizer.param_groups[0]['lr']
 
-# 训练函数（支持混合精度 + 梯度裁剪 + MixUp/CutMix）
+# Training function (supports mixed precision + gradient clipping + MixUp/CutMix)
 def train_epoch(model, loader, criterion, optimizer, device, scaler=None, max_grad_norm=1.0, use_mixup=True, use_cutmix=True):
     model.train()
     total_loss = 0
@@ -165,7 +165,7 @@ def train_epoch(model, loader, criterion, optimizer, device, scaler=None, max_gr
         x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
         optimizer.zero_grad()
         
-        # MixUp/CutMix数据增强
+        # MixUp/CutMix data augmentation
         if use_mixup or use_cutmix:
             if use_cutmix and np.random.rand() < 0.5:
                 mixed_x, y_a, y_b, lam = cutmix_data(x, y, alpha=1.0)
@@ -176,7 +176,7 @@ def train_epoch(model, loader, criterion, optimizer, device, scaler=None, max_gr
         else:
             mixed_x, y_a, y_b, lam = x, y, y, 1.0
         
-        # 混合精度训练（GPU加速）
+        # Mixed precision training (GPU acceleration)
         if scaler:
             with torch.cuda.amp.autocast():
                 logits = model(mixed_x)
@@ -203,7 +203,7 @@ def train_epoch(model, loader, criterion, optimizer, device, scaler=None, max_gr
     return total_loss / len(loader)
 
 def evaluate(model, loader, device):
-    """评估模型，返回准确率和平均损失"""
+    """Evaluate model, returns accuracy and average loss"""
     model.eval()
     correct = total = 0
     total_loss = 0.0
@@ -225,24 +225,24 @@ def evaluate(model, loader, device):
             total_loss += loss.item()
     return correct / total, total_loss / len(loader)
 
-# 主程序
+# Main program
 def main():
-    # 获取脚本所在目录（项目根目录）的绝对路径
+    # Get absolute path of script directory (project root)
     script_dir = Path(__file__).parent.absolute()
-    # 加载数据
+    # Load data
     train_loader, test_loader = get_loaders(batch_size=256)
     
-    # 创建模型
+    # Create model
     model = ResNet28(num_classes=10).to(device)
     
-    # 混合精度训练（GPU加速）
+    # Mixed precision training (GPU acceleration)
     scaler = torch.cuda.amp.GradScaler() if torch.cuda.is_available() else None
     
-    # 损失函数和优化器
+    # Loss function and optimizer
     criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     
-    # 学习率调度：带Warmup的余弦退火
+    # Learning rate scheduling: Cosine annealing with warmup
     max_epochs = 80
     warmup_epochs = 5
     scheduler = WarmupCosineScheduler(
@@ -253,7 +253,7 @@ def main():
         min_lr=1e-6
     )
     
-    # 训练循环（增强早停）
+    # Training loop (enhanced early stopping)
     best_acc = 0.0
     best_loss = float('inf')
     patience = 15
@@ -261,29 +261,29 @@ def main():
     wait = 0
     no_improve_count = 0
     
-    print("\n开始训练 ResNet18")
+    print("\nStarting training for ResNet18")
     print("="*60)
     
     for epoch in range(max_epochs):
-        # 训练（使用MixUp/CutMix）
+        # Training (using MixUp/CutMix)
         avg_loss = train_epoch(model, train_loader, criterion, optimizer, device, scaler, 
                                max_grad_norm=1.0, use_mixup=True, use_cutmix=True)
         
-        # 评估
+        # Evaluation
         acc, val_loss = evaluate(model, test_loader, device)
         
         current_lr = scheduler.get_lr()
         print(f"Epoch {epoch+1}/{max_epochs} | Train Loss: {avg_loss:.4f} | Val Loss: {val_loss:.4f} | Acc: {acc:.4f} | LR: {current_lr:.6f}")
         
-        # GPU内存监控
+        # GPU memory monitoring
         if torch.cuda.is_available():
             memory_used = torch.cuda.max_memory_allocated() / 1024**3
             print(f"  GPU Memory: {memory_used:.2f} GB")
         
-        # 学习率调度
+        # Learning rate scheduling
         scheduler.step()
         
-        # 增强早停机制
+        # Enhanced early stopping mechanism
         improved = False
         if acc > best_acc + min_delta:
             best_acc = acc
@@ -297,15 +297,15 @@ def main():
             no_improve_count = 0
             model_path = script_dir / "resnet_fmnist.pt"
             torch.save(model.state_dict(), str(model_path))
-            print(f"  -> 保存最佳模型! Best acc: {best_acc:.4f}, Best val loss: {best_loss:.4f}")
+            print(f"  -> Saved best model! Best acc: {best_acc:.4f}, Best val loss: {best_loss:.4f}")
         else:
             wait += 1
             no_improve_count += 1
             if wait >= patience:
-                print(f"早停于 epoch {epoch+1} (准确率无改善)")
+                print(f"Early stopping at epoch {epoch+1} (accuracy no improvement)")
                 break
             if no_improve_count >= patience * 2:
-                print(f"早停于 epoch {epoch+1} (准确率和损失均无改善)")
+                print(f"Early stopping at epoch {epoch+1} (accuracy and loss no improvement)")
                 break
     
     print(f"\nFinal Best Accuracy: {best_acc:.4f}")
