@@ -10,8 +10,6 @@ Code References:
 - Data augmentation strategies reference common methods used in ImageNet training
 - Learning rate scheduling uses Cosine Annealing, referencing PyTorch official documentation
 
-Author: [Please fill in name]
-Date: [Please fill in date]
 """
 import torch
 import random
